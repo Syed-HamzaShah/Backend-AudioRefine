@@ -1,20 +1,22 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import shutil
 import os
+import time
+from uuid import uuid4
+
 from utils.spleeter_utils import run_spleeter
 from utils.demucs_utils import run_demucs
 from utils.rnnoise_utils import run_rnnoise
 from utils.silero_utils import run_silero_vad
-from uuid import uuid4
 
 app = FastAPI()
 
-# ✅ CORS setup for Vercel frontend
+# CORS config for Vercel or localhost
 origins = [
     "http://localhost:3000",
-    "https://your-frontend.vercel.app",  # replace with your actual frontend domain
+    "https://your-frontend.vercel.app",  # 🔁 Replace with actual frontend domain
 ]
 
 app.add_middleware(
@@ -30,22 +32,40 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+# 🧹 Clean up files older than N seconds
+def cleanup_old_files(folder: str, age_limit_seconds: int = 3600):
+    now = time.time()
+    for file in os.listdir(folder):
+        file_path = os.path.join(folder, file)
+        if os.path.isfile(file_path):
+            file_age = now - os.path.getmtime(file_path)
+            if file_age > age_limit_seconds:
+                try:
+                    os.remove(file_path)
+                except Exception as e:
+                    print(f"Failed to remove {file_path}: {e}")
+
 @app.post("/process/{method}")
-async def process_audio(method: str, file: UploadFile = File(...)):
+async def process_audio(method: str, request: Request, file: UploadFile = File(...)):
+    # 🔍 Validate file extension
     if not file.filename.endswith(('.wav', '.mp3', '.ogg', '.m4a')):
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
-    # Unique filename to prevent conflicts
+    # 🧼 Clean up old files before processing
+    cleanup_old_files(UPLOAD_FOLDER)
+    cleanup_old_files(OUTPUT_FOLDER)
+
+    # 📁 Save file with unique name
     extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid4().hex}{extension}"
     file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
     output_path = os.path.join(OUTPUT_FOLDER, unique_filename)
 
-    # Save the uploaded file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
+        # 🧠 Choose processing method
         if method == "spleeter":
             run_spleeter(file_path, OUTPUT_FOLDER)
         elif method == "demucs":
@@ -59,10 +79,11 @@ async def process_audio(method: str, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
-    # ✅ You should ideally serve files using a route
+    # 🌐 Return full download URL
+    download_url = f"{request.base_url}download/{unique_filename}"
     return {
         "status": "success",
-        "processedUrl": f"/download/{unique_filename}"
+        "processedUrl": download_url
     }
 
 @app.get("/download/{filename}")
@@ -71,4 +92,8 @@ async def download_file(filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
-    return FileResponse(file_path, media_type="audio/mpeg", filename=filename)
+    # 🎵 Determine proper MIME type
+    ext = os.path.splitext(filename)[1].lower()
+    media_type = "audio/wav" if ext == ".wav" else "audio/mpeg"
+
+    return FileResponse(file_path, media_type=media_type, filename=filename)
