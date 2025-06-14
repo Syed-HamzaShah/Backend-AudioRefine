@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: fastapi-audio-backend
+    runtime: python
+    buildCommand: ""
+    startCommand: ./start.sh
+    plan: free
+    branch: main
+    region: oregon
+    autoDeploy: true
