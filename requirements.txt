@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+ffmpeg-python
+spleeter
+torch
+torchaudio
+numpy
+scipy
+soundfile
+git+https://github.com/snakers4/silero-vad.git
+rnnoise-wrapper
+demucs
