@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: audio-refine-backend
+    env: docker
+    repo: https://github.com/YourUsername/YourRepo
+    branch: main
+    plan: free
+    region: oregon
+    autoDeploy: true
+    dockerfilePath: Dockerfile
+    buildFilter:
+      paths:
+        - .
+    envVars:
+      - key: PORT
+        value: 8000
