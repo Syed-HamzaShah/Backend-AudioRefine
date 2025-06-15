@@ -8,9 +8,10 @@ from fastapi.responses import FileResponse
 import shutil
 import time
 from uuid import uuid4
+import gc
+import torch
 
-# Removed run_rnnoise
-from utils import run_spleeter, run_demucs, run_silero_vad
+from utils import run_silero_vad  # Only silero kept
 
 app = FastAPI()
 
@@ -62,19 +63,18 @@ async def process_audio(method: str, request: Request, file: UploadFile = File(.
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        if method == "spleeter":
-            run_spleeter(file_path, OUTPUT_FOLDER)
-        elif method == "demucs":
-            run_demucs(file_path)
-        elif method == "silero":
+        if method == "silero":
             run_silero_vad(file_path, output_path)
-        elif method == "rnnoise":
-            # 🧪 Temporarily disabled due to deployment issues
-            raise HTTPException(status_code=503, detail="RNNoise is currently unavailable")
+        elif method in ["spleeter", "demucs", "rnnoise"]:
+            raise HTTPException(status_code=503, detail=f"{method} is disabled due to memory limits")
         else:
             raise HTTPException(status_code=400, detail="Invalid method")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
+    finally:
+        # Clean up memory
+        torch.cuda.empty_cache()
+        gc.collect()
 
     download_url = f"{request.base_url}download/{unique_filename}"
     return {
