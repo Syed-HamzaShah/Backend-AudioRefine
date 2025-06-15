@@ -3,7 +3,7 @@ services:
     name: audiorefine-backend
     env: python
     buildCommand: |
-      echo "python-3.11.9" > runtime.txt
+      echo "python-3.10.13" > runtime.txt
       pip install numpy==1.24.4 cython==0.29.36
       pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port 10000
