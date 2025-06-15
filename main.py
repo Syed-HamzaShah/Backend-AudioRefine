@@ -6,17 +6,14 @@ import os
 import time
 from uuid import uuid4
 
-from utils.spleeter_utils import run_spleeter
-from utils.demucs_utils import run_demucs
-from utils.rnnoise_utils import run_rnnoise
-from utils.silero_utils import run_silero_vad
+from utils import run_spleeter, run_rnnoise, run_demucs, run_silero_vad
 
 app = FastAPI()
 
 # CORS config for Vercel or localhost
 origins = [
     "http://localhost:3000",
-    "https://your-frontend.vercel.app",  # 🔁 Replace with actual frontend domain
+    "https://audiorefine.vercel.app",  # 🔁 Replace with actual frontend domain
 ]
 
 app.add_middleware(
