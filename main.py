@@ -2,24 +2,22 @@ import sys
 import os
 sys.path.append(os.path.dirname(__file__))
 
-
-
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 import shutil
-import os
 import time
 from uuid import uuid4
 
-from utils import run_spleeter, run_rnnoise, run_demucs, run_silero_vad
+# Removed run_rnnoise
+from utils import run_spleeter, run_demucs, run_silero_vad
 
 app = FastAPI()
 
-# CORS config for Vercel or localhost
+# CORS config
 origins = [
     "http://localhost:3000",
-    "https://audiorefine.vercel.app",  # 🔁 Replace with actual frontend domain
+    "https://audiorefine.vercel.app",
 ]
 
 app.add_middleware(
@@ -35,7 +33,6 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
-# 🧹 Clean up files older than N seconds
 def cleanup_old_files(folder: str, age_limit_seconds: int = 3600):
     now = time.time()
     for file in os.listdir(folder):
@@ -50,15 +47,12 @@ def cleanup_old_files(folder: str, age_limit_seconds: int = 3600):
 
 @app.post("/process/{method}")
 async def process_audio(method: str, request: Request, file: UploadFile = File(...)):
-    # 🔍 Validate file extension
     if not file.filename.endswith(('.wav', '.mp3', '.ogg', '.m4a')):
         raise HTTPException(status_code=400, detail="Unsupported file type")
 
-    # 🧼 Clean up old files before processing
     cleanup_old_files(UPLOAD_FOLDER)
     cleanup_old_files(OUTPUT_FOLDER)
 
-    # 📁 Save file with unique name
     extension = os.path.splitext(file.filename)[1]
     unique_filename = f"{uuid4().hex}{extension}"
     file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
@@ -68,21 +62,20 @@ async def process_audio(method: str, request: Request, file: UploadFile = File(.
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # 🧠 Choose processing method
         if method == "spleeter":
             run_spleeter(file_path, OUTPUT_FOLDER)
         elif method == "demucs":
             run_demucs(file_path)
-        elif method == "rnnoise":
-            run_rnnoise(file_path, output_path)
         elif method == "silero":
             run_silero_vad(file_path, output_path)
+        elif method == "rnnoise":
+            # 🧪 Temporarily disabled due to deployment issues
+            raise HTTPException(status_code=503, detail="RNNoise is currently unavailable")
         else:
             raise HTTPException(status_code=400, detail="Invalid method")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
-    # 🌐 Return full download URL
     download_url = f"{request.base_url}download/{unique_filename}"
     return {
         "status": "success",
@@ -95,8 +88,6 @@ async def download_file(filename: str):
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
-    # 🎵 Determine proper MIME type
     ext = os.path.splitext(filename)[1].lower()
     media_type = "audio/wav" if ext == ".wav" else "audio/mpeg"
-
     return FileResponse(file_path, media_type=media_type, filename=filename)
